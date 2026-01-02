@@ -1,39 +1,41 @@
+// src/services/geminiService.ts
+
 const API_KEY = "AIzaSyAEE-0IgWA48sAioGVvEzQcvga52XncAvw";
 
 export const generateProject = async (request: any) => {
-  // Lista de modelos disponíveis na sua chave, do mais leve para o mais pesado
+  // Modelos ordenados por estabilidade e maior cota na Free Tier
   const models = [
-    "gemini-2.0-flash-lite", 
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash"
+    "gemini-1.5-flash",      
+    "gemini-1.5-flash-8b", 
+    "gemini-2.0-flash-exp"   
   ];
 
   let lastError = "";
+  let atingiuLimite = false;
 
-  // Tenta cada modelo disponível caso um esteja sem cota (Erro 429)
-  for (const model of models) {
+  for (const modelName of models) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${API_KEY}`;
+      console.log(`Tentando modelo: ${modelName}...`);
+      
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
 
       const payload = {
         contents: [{
           parts: [{
-            text: `Aja como um arquiteto sênior e especialista em design de interiores. 
-            Crie um projeto arquitetônico detalhado para:
+            text: `Aja como um arquiteto sênior. Crie um projeto detalhado para:
             - Estilo: ${request.style}
-            - Área Total: ${request.size}m²
-            - Quantidade de Quartos: ${request.rooms}
+            - Área: ${request.size}m²
+            - Quartos: ${request.rooms}
             - Pavimentos: ${request.floors || 1}
-            - Notas Adicionais: ${request.additionalNotes || 'Nenhuma'}
+            - Notas: ${request.additionalNotes || 'Nenhuma'}
 
-            Retorne uma descrição organizada com: Setorização, Sugestão de Materiais e Fluxo de Circulação.`
+            Retorne: Setorização, Materiais e Fluxo de Circulação.`
           }]
         }],
         generationConfig: {
           temperature: 0.7,
           topP: 0.95,
-          topK: 64,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 1000, // Reduzido levemente para economizar cota
         }
       };
 
@@ -45,23 +47,29 @@ export const generateProject = async (request: any) => {
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (response.ok && data.candidates && data.candidates[0].content) {
         return data.candidates[0].content.parts[0].text;
       } 
       
-      if (response.status === 429) {
-        console.warn(`Modelo ${model} está sem cota, tentando o próximo...`);
-        lastError = "Limite de requisições atingido. Tente novamente em 1 minuto.";
-        continue; // Pula para o próximo modelo da lista
+      // Se o erro for de cota (Quota Exceeded)
+      if (response.status === 429 || (data.error?.message && data.error.message.includes("quota"))) {
+        console.warn(`Modelo ${modelName} atingiu o limite.`);
+        atingiuLimite = true;
+        continue; // Tenta o próximo modelo
       }
 
-      throw new Error(data.error?.message || "Erro desconhecido");
+      lastError = data.error?.message || "Erro desconhecido";
 
     } catch (error: any) {
-      console.error(`Erro com o modelo ${model}:`, error);
-      lastError = error.message;
+      console.error(`Erro técnico no modelo ${modelName}:`, error);
+      lastError = "Falha na conexão com o serviço de IA.";
     }
   }
 
-  throw new Error(lastError || "Não foi possível gerar o projeto com nenhum modelo disponível.");
+  // Se sair do loop sem retornar, lança o erro amigável
+  if (atingiuLimite) {
+    throw new Error("Você atingiu o limite diario da criação de plantas");
+  }
+
+  throw new Error(lastError || "Não foi possível gerar o projeto.");
 };
