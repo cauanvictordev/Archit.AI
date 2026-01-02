@@ -143,7 +143,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-6">
-            <div className="hidden md:flex bg-slate-900/50 p-1 rounded-2xl border border-white/5">
+            <div className="flex bg-slate-900/50 p-1 rounded-2xl border border-white/5">
               <button onClick={() => setActiveMode('ai-pure')} className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeMode === 'ai-pure' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>Criação IA</button>
               <button onClick={() => setActiveMode('manual-assisted')} className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeMode === 'manual-assisted' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>Desenho Manual</button>
             </div>
